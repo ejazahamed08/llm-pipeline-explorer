@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLM Pipeline Explorer</title>
+
+  <style>
+    /* WHAT THIS DOES:
+       Page-wide look. This is the LIGHT theme: white background, dark text.
+       The content column is centred on screen and never wider than 1000px,
+       so lines of text stay easy to read. */
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 40px 20px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: #ffffff;
+      color: #1c2330;
+      line-height: 1.6;
+    }
+
+    main {
+      max-width: 1000px;
+      margin: 0 auto; /* this centres the whole page content */
+    }
+
+    h1 {
+      font-size: 30px;
+      margin-bottom: 4px;
+    }
+
+    p.subtitle {
+      color: #5b6472;
+      margin-top: 0;
+      margin-bottom: 36px;
+    }
+
+    /* WHAT THIS DOES:
+       Styling for each big section ("Part 1", "Part 2"). A card is a boxed
+       area with a light border and rounded corners so the two parts of the
+       pipeline are visually separate. */
+
+    section.card {
+      border: 1px solid #d7dce4;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 28px;
+      background: #fafbfc;
+    }
+
+    section.card h2 {
+      margin-top: 0;
+      font-size: 22px;
+    }
+
+    /* WHAT THIS DOES:
+       Styling for the little labelled groups inside a card: a small bold
+       label, then the input (a multi-line text box), then a button. */
+
+    .field {
+      margin-top: 18px;
+    }
+
+    .field label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: 15px;
+      border: 1px solid #c4cbd6;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #1c2330;
+      resize: vertical;
+    }
+
+    button {
+      margin-top: 10px;
+      padding: 10px 18px;
+      font-size: 15px;
+      font-weight: 600;
+      border: 1px solid #3556c9;
+      border-radius: 8px;
+      background: #3556c9;
+      color: #ffffff;
+      cursor: pointer;
+    }
+
+    /* WHAT THIS DOES:
+       Radio button choices (Spelling-based / Meaning-based). They sit side
+       by side with a little space between them. */
+
+    .radios {
+      display: flex;
+      gap: 24px;
+      margin-top: 18px;
+    }
+
+    .radios label {
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* WHAT THIS DOES:
+       The empty chart area for Part 2. It is fixed at 520px tall and shows
+       a dashed border so it is obviously "a box waiting to be filled" with
+       dots later. */
+
+    #chart-area {
+      height: 520px;
+      margin-top: 18px;
+      border: 2px dashed #c4cbd6;
+      border-radius: 10px;
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #8a93a2;
+    }
+  </style>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  </head>
+<body>
+  <main>
+    <h1>LLM Pipeline Explorer</h1>
+    <p class="subtitle">A simple, step-by-step page for learning how a large language model works.</p>
+
+    <!-- WHAT THIS DOES:
+         Part 1 of the pipeline: the Tokenizer. This part is static layout
+         only — the text boxes are pre-filled with example sentences and the
+         two buttons exist, but neither button does anything yet. That logic
+         comes in a later step. -->
+    <section class="card" id="tokenizer">
+      <h2>Part 1 — Tokenizer</h2>
+
+      <div class="field">
+        <label for="training-sentences">Training sentences</label>
+        <textarea id="training-sentences" rows="6">The cat sat on the mat.
+The dog sat on the log.
+The cat loves the dog.
+A bat flew in the night.
+The dog loves a bone.
+The mat is on the floor.</textarea>
+      </div>
+
+      <button type="button" id="build-vocab-btn">Build vocabulary</button>
+
+      <div class="field" id="vocab-slider-container" style="display: none; margin-top: 14px;">
+        <label id="vocab-slider-label" for="vocab-slider" style="font-weight: 600; margin-bottom: 6px;">Words kept: 0 of 0</label>
+        <input type="range" id="vocab-slider" min="1" max="1" value="1" style="width: 100%; max-width: 320px; accent-color: #3556c9;">
+      </div>
+
+      <div class="field" id="vocab-output"></div>
+
+      <div class="field">
+        <label for="encode-sentence">Encode a sentence</label>
+        <textarea id="encode-sentence" rows="2">The cat sat on the quantum mat.</textarea>
+      </div>
+
+      <button type="button" id="tokenize-btn">Tokenize</button>
+      <div class="field" id="tokenize-output"></div>
+    </section>
+
+
+
+
+    <!-- WHAT THIS DOES:
+         Part 2 of the pipeline: Embeddings in 3D. Again, layout only. Eight
+         example sentences sit in a text box (one per line), two radio buttons
+         pick a mode (Spelling-based is selected by default), an "Embed and
+         plot" button is present but not wired up yet, and below everything
+         there is an empty 520px-tall chart area ready for dots later. -->
+    <section class="card" id="embeddings">
+      <h2>Part 2 — Embeddings in 3D</h2>
+
+      <div class="field">
+        <label for="embedding-sentences">Sentences (one per line)</label>
+        <textarea id="embedding-sentences" rows="8">The cat sat on the mat.
+A kitten rested on the rug.
+The bat sat on the mat.
+I love programming in Python.
+Coding in Python is my passion.
+Pythons are large snakes.
+The stock market crashed today.
+Share prices fell sharply.</textarea>
+      </div>
+
+      <div class="radios">
+        <label>
+          <input type="radio" name="embedding-mode" value="spelling" checked />
+          Spelling-based
+        </label>
+        <label>
+          <input type="radio" name="embedding-mode" value="meaning" />
+          Meaning-based
+        </label>
+      </div>
+
+      <button type="button" id="embed-plot-btn">Embed and plot</button>
+
+      <div id="chart-area">Chart will appear here</div>
+      <div id="closest-pairs" style="margin-top:20px;"></div>
+    </section>
+
+
+
+  </main>
+
+  <script>
+    "use strict";
+
+    // Global vocabulary state
+    window.vocabMap = {};
+    window.vocabSize = 0;
+    let allSortedWords = [];
+    let hasTokenized = false;
+
+    // Helper: generate consistent, pleasing color based on token ID
+    function idToColor(id) {
+      if (id === 0) return "#e2e8f0"; // neutral soft grey for [UNK]
+      const hue = (id * 137.508) % 360; // golden angle distribution
+      return `hsl(${hue}, 70%, 82%)`;
+    }
+
+    // -------------------------------------------------------------------
+    // PART 1: TOKENIZER & VOCABULARY (Stages 2, 3, 6)
+    // -------------------------------------------------------------------
+
+    function updateVocabulary(keptCount) {
+      const total = allSortedWords.length;
+      const count = Math.max(1, Math.min(total, keptCount));
+
+      // Update slider & label: "Words kept: N of TOTAL"
+      const slider = document.getElementById("vocab-slider");
+      const sliderLabel = document.getElementById("vocab-slider-label");
+      if (slider) slider.value = count;
+      if (sliderLabel) sliderLabel.textContent = `Words kept: ${count} of ${total}`;
+
+      // Keep only the top N most frequent words
+      const kept = allSortedWords.slice(0, count);
+
+      // Give IDs: 0 = [UNK], then 1, 2, 3...
+      const tokenToId = { "[UNK]": 0 };
+      kept.forEach(([tok], idx) => {
+        tokenToId[tok] = idx + 1;
+      });
+
+      window.vocabMap = tokenToId;
+      window.vocabSize = kept.length + 1; // including [UNK]
+
+      // Render scrollable table: ID | token | count
+      let html = '<table style="width: 100%; border-collapse: collapse; font-size: 14px; text-align: left;">';
+      html += '<thead><tr style="background: #f1f4f9; border-bottom: 2px solid #d7dce4;">';
+      html += '<th style="padding: 6px 10px; border: 1px solid #d7dce4;">ID</th>';
+      html += '<th style="padding: 6px 10px; border: 1px solid #d7dce4;">Token</th>';
+      html += '<th style="padding: 6px 10px; border: 1px solid #d7dce4;">Count</th>';
+      html += '</tr></thead><tbody>';
+
+      // ID 0 = [UNK]
+      html += '<tr style="background: #fafafa;"><td style="padding: 5px 10px; border: 1px solid #e2e8f0; font-weight: 600;">0</td><td style="padding: 5px 10px; border: 1px solid #e2e8f0; color: #64748b;">[UNK]</td><td style="padding: 5px 10px; border: 1px solid #e2e8f0; color: #64748b;">0</td></tr>';
+
+      kept.forEach(([tok, cnt], idx) => {
+        const id = idx + 1;
+        html += `<tr><td style="padding: 5px 10px; border: 1px solid #e2e8f0; font-weight: 600;">${id}</td><td style="padding: 5px 10px; border: 1px solid #e2e8f0;">${tok}</td><td style="padding: 5px 10px; border: 1px solid #e2e8f0;">${cnt}</td></tr>`;
+      });
+      html += '</tbody></table>';
+
+      const container = document.getElementById("vocab-output");
+      if (container) {
+        container.innerHTML = `
+          <p style="margin: 8px 0 6px 0; font-weight: 600;">Vocabulary size: ${window.vocabSize}</p>
+          <div style="max-height: 220px; overflow-y: auto; border: 1px solid #d7dce4; border-radius: 8px; background: #ffffff;">
+            ${html}
+          </div>
+        `;
+      }
+
+      // Stage 6: If a sentence was already tokenized, re-tokenize it live as I drag
+      if (hasTokenized) {
+        renderTokenize();
+      }
+    }
+
+    // Build vocabulary click handler
+    document.getElementById("build-vocab-btn").addEventListener("click", () => {
+      const textarea = document.getElementById("training-sentences");
+      if (!textarea) return;
+
+      let text = textarea.value;
+      // Step 1: Make all text lowercase
+      text = text.toLowerCase();
+      // Step 2: Put spaces around . , ! ? ' so each becomes its own token
+      text = text.replace(/([.,!?'])/g, " $1 ");
+      // Step 3: Split the text into words on spaces
+      text = text.replace(/\s+/g, " ").trim();
+      const rawTokens = text.length > 0 ? text.split(" ") : [];
+
+      // Step 4: Count how many times each word appears; sort most frequent first
+      const freq = new Map();
+      rawTokens.forEach(tok => {
+        if (!tok) return;
+        freq.set(tok, (freq.get(tok) || 0) + 1);
+      });
+
+      allSortedWords = Array.from(freq.entries()).sort((a, b) => {
+        if (b[1] !== a[1]) return b[1] - a[1];
+        return a[0].localeCompare(b[0]);
+      });
+
+      const total = allSortedWords.length;
+      if (total === 0) {
+        const container = document.getElementById("vocab-output");
+        if (container) container.innerHTML = "<p>No words found in training sentences.</p>";
+        return;
+      }
+
+      // Stage 6: Show slider "Words kept: N of TOTAL"
+      const sliderContainer = document.getElementById("vocab-slider-container");
+      const slider = document.getElementById("vocab-slider");
+      if (sliderContainer) sliderContainer.style.display = "block";
+      if (slider) {
+        slider.min = "1";
+        slider.max = total.toString();
+        slider.value = total.toString();
+      }
+
+      updateVocabulary(total);
+    });
+
+    // Slider input handler (live drag)
+    document.getElementById("vocab-slider").addEventListener("input", (e) => {
+      const count = parseInt(e.target.value, 10);
+      updateVocabulary(count);
+    });
+
+    // Tokenize logic
+    function renderTokenize() {
+      const textarea = document.getElementById("encode-sentence");
+      const outputDiv = document.getElementById("tokenize-output");
+      if (!textarea || !outputDiv) return;
+
+      let text = textarea.value;
+      text = text.toLowerCase();
+      text = text.replace(/([.,!?'])/g, " $1 ");
+      text = text.replace(/\s+/g, " ").trim();
+      const rawTokens = text.length > 0 ? text.split(" ") : [];
+
+      const vocab = window.vocabMap || { "[UNK]": 0 };
+      const chips = [];
+      let totalChars = 0;
+      let hasUnknown = false;
+
+      rawTokens.forEach(tok => {
+        if (!tok) return;
+        totalChars += tok.length;
+        if (Object.prototype.hasOwnProperty.call(vocab, tok)) {
+          chips.push({ token: tok, id: vocab[tok] });
+        } else {
+          hasUnknown = true;
+          // Unknown word: break into single letters
+          // First letter as normal, the rest with "##" in front
+          const firstChar = tok[0];
+          const firstId = Object.prototype.hasOwnProperty.call(vocab, firstChar) ? vocab[firstChar] : 0;
+          chips.push({ token: firstChar, id: firstId });
+
+          for (let i = 1; i < tok.length; i++) {
+            const piece = "##" + tok[i];
+            const pieceId = Object.prototype.hasOwnProperty.call(vocab, piece) ? vocab[piece] : 0;
+            chips.push({ token: piece, id: pieceId });
+          }
+        }
+      });
+
+      const tokenCount = chips.length;
+      const charsPerToken = tokenCount === 0 ? "0.00" : (totalChars / tokenCount).toFixed(2);
+
+      outputDiv.innerHTML = "";
+
+      // Stats
+      const stats = document.createElement("p");
+      stats.style.margin = "12px 0 8px 0";
+      stats.innerHTML = `<strong>Characters:</strong> ${totalChars} &nbsp;|&nbsp; <strong>Tokens:</strong> ${tokenCount} &nbsp;|&nbsp; <strong>Characters per token:</strong> ${charsPerToken}`;
+      outputDiv.appendChild(stats);
+
+      // Coloured chips
+      const chipContainer = document.createElement("div");
+      chipContainer.style.display = "flex";
+      chipContainer.style.flexWrap = "wrap";
+      chipContainer.style.gap = "8px";
+      chipContainer.style.marginTop = "8px";
+
+      chips.forEach(ch => {
+        const chip = document.createElement("div");
+        chip.style.display = "inline-flex";
+        chip.style.flexDirection = "column";
+        chip.style.alignItems = "center";
+        chip.style.justifyContent = "center";
+        chip.style.padding = "6px 10px";
+        chip.style.borderRadius = "8px";
+        chip.style.background = idToColor(ch.id);
+        chip.style.border = "1px solid rgba(0, 0, 0, 0.08)";
+        chip.style.minWidth = "36px";
+
+        const wordSpan = document.createElement("span");
+        wordSpan.textContent = ch.token;
+        wordSpan.style.fontWeight = "600";
+        wordSpan.style.fontSize = "14px";
+        wordSpan.style.color = "#1c2330";
+
+        const idSpan = document.createElement("span");
+        idSpan.textContent = ch.id;
+        idSpan.style.fontSize = "11px";
+        idSpan.style.color = "#475569";
+
+        chip.appendChild(wordSpan);
+        chip.appendChild(idSpan);
+        chipContainer.appendChild(chip);
+      });
+      outputDiv.appendChild(chipContainer);
+
+      if (hasUnknown) {
+        const note = document.createElement("p");
+        note.style.margin = "10px 0 0 0";
+        note.style.fontSize = "13px";
+        note.style.color = "#c2410c";
+        note.style.fontStyle = "italic";
+        note.textContent = "Note: unknown words are broken into smaller pieces.";
+        outputDiv.appendChild(note);
+      }
+    }
+
+    document.getElementById("tokenize-btn").addEventListener("click", () => {
+      hasTokenized = true;
+      renderTokenize();
+    });
+
+    // -------------------------------------------------------------------
+    // PART 2: EMBEDDINGS IN 3D (Stages 4, 5)
+    // -------------------------------------------------------------------
+
+    const cosineSimilarity = (a, b) => {
+      let dot = 0, normA = 0, normB = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        normA += a[i] * a[i];
+        normB += b[i] * b[i];
+      }
+      return dot / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
+    };
+
+    const getSpellingEmbedding = (sentence) => {
+      const clean = sentence.toLowerCase().replace(/[^a-z]/g, "");
+      const hist = new Array(64).fill(0);
+      for (let i = 0; i <= clean.length - 3; i++) {
+        const tri = clean.slice(i, i + 3);
+        const h = (tri.charCodeAt(0) + tri.charCodeAt(1) * 31 + tri.charCodeAt(2) * 17) % 64;
+        hist[h] += 1;
+      }
+      // Scale length to 1
+      let sumSq = 0;
+      for (let i = 0; i < 64; i++) sumSq += hist[i] * hist[i];
+      const mag = Math.sqrt(sumSq) || 1;
+      const norm = hist.map(v => v / mag);
+
+      // Reduce 64 -> 3 (x, y, z)
+      const x = norm.slice(0, 21).reduce((a, b) => a + b, 0);
+      const y = norm.slice(21, 42).reduce((a, b) => a + b, 0);
+      const z = norm.slice(42).reduce((a, b) => a + b, 0);
+      return { full: norm, x, y, z };
+    };
+
+    let transformerPipeline = null;
+    const loadTransformer = async (onProgress) => {
+      if (!window.transformers) {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = "https://cdn.jsdelivr.net/npm/@xenova/transformers";
+          s.onload = resolve;
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }
+      const { pipeline } = window.transformers;
+      transformerPipeline = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", {
+        pooling: "mean",
+        normalize: true,
+        progress_callback: onProgress
+      });
+    };
+
+    document.getElementById("embed-plot-btn").addEventListener("click", async () => {
+      const textarea = document.getElementById("embedding-sentences");
+      if (!textarea) return;
+      const raw = textarea.value.trim();
+      const lines = raw.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+      const chartDiv = document.getElementById("chart-area");
+      const pairsDiv = document.getElementById("closest-pairs");
+
+      if (lines.length < 4) {
+        chartDiv.innerHTML = '<p style="color:#64748b;">Please enter at least 4 sentences to embed.</p>';
+        if (pairsDiv) pairsDiv.innerHTML = "";
+        return;
+      }
+
+      let mode = document.querySelector('input[name="embedding-mode"]:checked')?.value || "spelling";
+      let embeddings = [];
+      let reduced = { xs: [], ys: [], zs: [], texts: [] };
+
+      if (mode === "meaning") {
+        try {
+          if (pairsDiv) pairsDiv.innerHTML = '<p style="color:#3556c9;">Loading meaning-based model (MiniLM-L6-v2)...</p>';
+          await loadTransformer((p) => {
+            if (pairsDiv && p.status === "progress") {
+              const pct = Math.round(p.progress || 0);
+              pairsDiv.innerHTML = `<p style="color:#3556c9;">Downloading model: ${p.file || ""} (${pct}%)</p>`;
+            }
+          });
+
+          for (let i = 0; i < lines.length; i++) {
+            const sentence = lines[i];
+            const output = await transformerPipeline(sentence);
+            const arr = Array.from(output.data || output);
+            embeddings.push(arr);
+
+            const third = Math.floor(arr.length / 3);
+            const x = arr.slice(0, third).reduce((a, b) => a + b, 0);
+            const y = arr.slice(third, 2 * third).reduce((a, b) => a + b, 0);
+            const z = arr.slice(2 * third).reduce((a, b) => a + b, 0);
+            reduced.xs.push(x);
+            reduced.ys.push(y);
+            reduced.zs.push(z);
+            reduced.texts.push(sentence);
+          }
+        } catch (err) {
+          console.warn("Meaning mode failed:", err);
+          if (pairsDiv) {
+            pairsDiv.innerHTML = '<p style="color:#b91c1c; font-weight: 500;">Meaning mode needs the page served over http - using spelling-based instead</p>';
+          }
+          mode = "spelling";
+          embeddings = [];
+          reduced = { xs: [], ys: [], zs: [], texts: [] };
+        }
+      }
+
+      if (mode === "spelling") {
+        lines.forEach(sentence => {
+          const { full, x, y, z } = getSpellingEmbedding(sentence);
+          embeddings.push(full);
+          reduced.xs.push(x);
+          reduced.ys.push(y);
+          reduced.zs.push(z);
+          reduced.texts.push(sentence);
+        });
+      }
+
+      // 3D chart with Plotly
+      const plotData = [{
+        x: reduced.xs,
+        y: reduced.ys,
+        z: reduced.zs,
+        mode: "markers+text",
+        type: "scatter3d",
+        text: reduced.xs.map((_, i) => `S${i + 1}`),
+        textposition: "top center",
+        hovertext: reduced.texts,
+        hoverinfo: "text",
+        marker: { size: 6, color: "#3556c9" }
+      }];
+
+      const plotLayout = {
+        margin: { l: 0, r: 0, b: 0, t: 0 },
+        scene: {
+          xaxis: { title: "x" },
+          yaxis: { title: "y" },
+          zaxis: { title: "z" }
+        }
+      };
+
+      Plotly.newPlot(chartDiv, plotData, plotLayout);
+
+      // Closest pairs table: 5 most similar sentence pairs using cosine similarity
+      const pairs = [];
+      for (let i = 0; i < embeddings.length; i++) {
+        for (let j = i + 1; j < embeddings.length; j++) {
+          const sim = cosineSimilarity(embeddings[i], embeddings[j]);
+          pairs.push({ i, j, sim });
+        }
+      }
+      pairs.sort((a, b) => b.sim - a.sim);
+      const top5 = pairs.slice(0, 5);
+
+      let tableHtml = '<table style="width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; margin-top: 10px;">';
+      tableHtml += '<thead><tr style="background: #f1f4f9; border-bottom: 2px solid #d7dce4;">';
+      tableHtml += '<th style="padding: 8px 10px; border: 1px solid #d7dce4;">Sentence 1</th>';
+      tableHtml += '<th style="padding: 8px 10px; border: 1px solid #d7dce4;">Sentence 2</th>';
+      tableHtml += '<th style="padding: 8px 10px; border: 1px solid #d7dce4; width: 90px; text-align: center;">Score</th>';
+      tableHtml += '</tr></thead><tbody>';
+
+      top5.forEach(p => {
+        tableHtml += `<tr>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0;">${reduced.texts[p.i]}</td>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0;">${reduced.texts[p.j]}</td>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; font-weight: 600;">${p.sim.toFixed(3)}</td>
+        </tr>`;
+      });
+      tableHtml += '</tbody></table>';
+
+      if (pairsDiv) {
+        const fallbackMsg = mode === "spelling" && pairsDiv.innerHTML.includes("Meaning mode needs")
+          ? pairsDiv.innerHTML
+          : "";
+        pairsDiv.innerHTML = `${fallbackMsg}<h3 style="margin: 18px 0 8px 0; font-size: 18px;">Closest pairs</h3>${tableHtml}`;
+      }
+    });
+  </script>
+</body>
+</html>
